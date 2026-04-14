@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>EmoTracker · Multi-Model Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="../Dashboard/static/style.css"/>
+</head>
+<body>
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+
+  <div class="wrapper">
+    <header>
+      <div class="logo-mark">🎭</div>
+      <div class="brand">
+        <h1>EmoTracker</h1>
+        <span>Multi-Model Emotion Recognition</span>
+      </div>
+    </header>
+
+    <!-- Upload -->
+    <div class="section-label">01 · Video Input</div>
+    <div class="upload-zone" id="dropZone">
+      <input type="file" id="videoInput" accept="video/*" />
+      <div class="upload-icon">🎬</div>
+      <h3>Drop your video here</h3>
+      <p>MP4, MOV, AVI · up to 100 MB</p>
+      <div class="file-name" id="fileName">No file selected</div>
+    </div>
+    <button class="btn-analyze" id="analyzeBtn" onclick="analyze()">Analyze Emotion →</button>
+
+    <!-- Video player (shown after upload) -->
+    <div class="video-player-wrap" id="videoPlayerWrap">
+      <video id="videoPlayer" controls></video>
+      <div class="timeline-wrap">
+        <span class="time-label" id="timeCurrent">0:00</span>
+        <div class="timeline-track" id="timelineTrack">
+          <div class="timeline-fill" id="timelineFill"></div>
+          <div class="timeline-thumb" id="timelineThumb"></div>
+        </div>
+        <span class="time-label" id="timeDuration">0:00</span>
+      </div>
+      <p class="timeline-hint">Scrub the timeline to see per-second emotion predictions</p>
+    </div>
+
+    <!-- Loader -->
+    <div class="loader" id="loader">
+      <div class="spinner"></div>
+      <p>Running inference across all models…</p>
+    </div>
+
+    <!-- Results (always visible) -->
+    <div id="results">
+      <div class="section-label" style="margin-top:0">02 · Per-Model Predictions</div>
+      <div class="models-grid" id="modelsGrid">
+        <div class="model-card empty">
+          <div class="model-name">SER Model (Speech)</div>
+          <div class="empty-state"><div class="empty-icon">📭</div><div class="empty-text">No input yet</div></div>
+        </div>
+        <div class="model-card empty">
+          <div class="model-name">FER Model (Facial Expression)</div>
+          <div class="empty-state"><div class="empty-icon">📭</div><div class="empty-text">No input yet</div></div>
+        </div>
+        <div class="model-card empty">
+          <div class="model-name">TER Model (Textual)</div>
+          <div class="empty-state"><div class="empty-icon">📭</div><div class="empty-text">No input yet</div></div>
+        </div>
+      </div>
+
+      <div class="section-label">03 · Ensemble Prediction</div>
+      <div class="ensemble-card empty" id="ensembleCard">
+        <div class="ensemble-left">
+          <div class="ensemble-label">🤝 Ensemble Result</div>
+          <div class="ensemble-emotion" style="color:var(--muted)">—</div>
+          <p style="font-size:.85rem;color:var(--muted);margin-top:10px">Upload a video to see the combined prediction</p>
+        </div>
+        <div class="ensemble-right">
+          <div class="ensemble-acc-num" style="font-size:2rem;color:var(--muted);-webkit-text-fill-color:var(--muted)">—%</div>
+          <div class="ensemble-acc-label">Combined Confidence</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const EMOTION_COLORS = {
+    Happy:'#F59E0B', Sad:'#3B82F6', Angry:'#EF4444',
+    Fearful:'#8B5CF6', Neutral:'#6B7280'
+  };
+
+  const dropZone   = document.getElementById('dropZone');
+  const videoInput = document.getElementById('videoInput');
+  const analyzeBtn = document.getElementById('analyzeBtn');
+  const fileNameEl = document.getElementById('fileName');
+  const videoPlayer     = document.getElementById('videoPlayer');
+  const videoPlayerWrap = document.getElementById('videoPlayerWrap');
+  const timelineTrack   = document.getElementById('timelineTrack');
+  const timelineFill    = document.getElementById('timelineFill');
+  const timelineThumb   = document.getElementById('timelineThumb');
+  const timeCurrent     = document.getElementById('timeCurrent');
+  const timeDuration    = document.getElementById('timeDuration');
+
+  let analysisData = null;
+
+  // ── drag-and-drop ──
+  dropZone.addEventListener('dragover',  e => { e.preventDefault(); dropZone.classList.add('drag'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault(); dropZone.classList.remove('drag');
+    if (e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]);
+  });
+  videoInput.addEventListener('change', () => { if (videoInput.files[0]) setFile(videoInput.files[0]); });
+
+  function setFile(file) {
+    fileNameEl.textContent = file.name;
+    dropZone.classList.add('has-file');
+    analyzeBtn.classList.add('visible');
+    // show video preview
+    videoPlayer.src = URL.createObjectURL(file);
+    videoPlayerWrap.classList.add('visible');
+    videoPlayer.onloadedmetadata = () => {
+      timeDuration.textContent = fmtTime(videoPlayer.duration);
+    };
+  }
+
+  // ── video sync → custom timeline ──
+  videoPlayer.addEventListener('timeupdate', () => {
+    const pct = videoPlayer.duration ? videoPlayer.currentTime / videoPlayer.duration : 0;
+    timelineFill.style.width  = (pct * 100) + '%';
+    timelineThumb.style.left  = (pct * 100) + '%';
+    timeCurrent.textContent   = fmtTime(videoPlayer.currentTime);
+    if (analysisData) syncToSecond(Math.floor(videoPlayer.currentTime));
+  });
+
+  // ── custom scrubber drag ──
+  let scrubbing = false;
+  function scrubTo(e) {
+    const rect = timelineTrack.getBoundingClientRect();
+    const pct  = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    if (videoPlayer.duration) videoPlayer.currentTime = pct * videoPlayer.duration;
+  }
+  timelineTrack.addEventListener('mousedown',  e => { scrubbing = true; scrubTo(e); });
+  document.addEventListener('mousemove', e => { if (scrubbing) scrubTo(e); });
+  document.addEventListener('mouseup',   ()  => { scrubbing = false; });
+  // touch
+  timelineTrack.addEventListener('touchstart', e => { scrubbing = true; scrubTo(e.touches[0]); });
+  document.addEventListener('touchmove',  e => { if (scrubbing) scrubTo(e.touches[0]); });
+  document.addEventListener('touchend',   ()  => { scrubbing = false; });
+
+  function fmtTime(s) {
+    if (!s || isNaN(s)) return '0:00';
+    const m = Math.floor(s / 60), sec = Math.floor(s % 60);
+    return `${m}:${sec.toString().padStart(2,'0')}`;
+  }
+
+  // ── analyze ──
+  async function analyze() {
+    const file = videoInput.files[0];
+    if (!file) return;
+    analyzeBtn.disabled = true;
+    document.getElementById('loader').classList.add('active');
+
+    const fd = new FormData();
+    fd.append('video', file);
+    try {
+      const res  = await fetch('/analyze', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (data.error) { alert(data.error); return; }
+      analysisData = data;
+      renderResults(data);
+    } catch(e) {
+      alert('Request failed: ' + e.message);
+    } finally {
+      document.getElementById('loader').classList.remove('active');
+      analyzeBtn.disabled = false;
+    }
+  }
+
+  function renderResults(data) {
+    renderModels(data.models);
+    renderEnsemble(data.ensemble);
+    requestAnimationFrame(() => requestAnimationFrame(() => animateBars()));
+  }
+
+  // ── sync cards to a specific second in the timeline ──
+  function syncToSecond(second) {
+    if (!analysisData) return;
+    const models = analysisData.models.map(m => {
+      const snap = m.timeline && second < m.timeline.length
+        ? m.timeline[second]
+        : { emotion: m.emotion, accuracy: m.accuracy, all_probs: m.all_probs };
+      return { ...m, emotion: snap.emotion, accuracy: snap.accuracy, all_probs: snap.all_probs };
+    });
+    const ens = analysisData.ensemble.timeline && second < analysisData.ensemble.timeline.length
+      ? analysisData.ensemble.timeline[second]
+      : analysisData.ensemble;
+
+    renderModels(models, false);
+    renderEnsemble(ens, false);
+    requestAnimationFrame(() => requestAnimationFrame(() => animateBars()));
+  }
+
+  function renderModels(models, animate = true) {
+    const grid = document.getElementById('modelsGrid');
+    grid.innerHTML = models.map((m, i) => {
+      const color = EMOTION_COLORS[m.emotion] || '#6B7280';
+      const probs = Object.entries(m.all_probs).sort((a,b)=>b[1]-a[1]);
+      return `
+        <div class="model-card" style="${animate ? `animation-delay:${i*0.08}s` : 'animation:none'}">
+          <div class="model-name">${m.model}</div>
+          <div class="emotion-badge">
+            <span class="emotion-dot" style="background:${color}"></span>
+            ${m.emotion}
+          </div>
+          <div class="accuracy-row">
+            <span class="accuracy-label">Confidence</span>
+            <span class="accuracy-value" style="color:${color}">${m.accuracy}%</span>
+          </div>
+          <div class="bar-track">
+            <div class="bar-fill" data-target="${m.accuracy}" style="background:${color}"></div>
+          </div>
+          <div class="mini-probs">
+            ${probs.map(([emo, pct]) => `
+              <div class="mini-row">
+                <div class="mini-label">${emo}</div>
+                <div class="mini-track">
+                  <div class="mini-fill" data-target="${pct}" style="background:${EMOTION_COLORS[emo]||'#6B7280'}"></div>
+                </div>
+                <div class="mini-pct">${pct}%</div>
+              </div>`).join('')}
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  function renderEnsemble(ens, animate = true) {
+    const color = EMOTION_COLORS[ens.emotion] || '#7c6ef5';
+    const card  = document.getElementById('ensembleCard');
+    card.classList.remove('empty');
+    card.innerHTML = `
+      <div class="ensemble-left">
+        <div class="ensemble-label">🤝 Ensemble Result</div>
+        <div class="ensemble-emotion" style="color:${color}">${ens.emotion}</div>
+        <p style="font-size:.85rem;color:var(--muted);margin-top:10px">Combined prediction from all three models</p>
+      </div>
+      <div class="ensemble-right">
+        <div class="ensemble-acc-num">${ens.accuracy}%</div>
+        <div class="ensemble-acc-label">Combined Confidence</div>
+      </div>`;
+  }
+
+  function animateBars() {
+    document.querySelectorAll('.bar-fill, .mini-fill').forEach(el => {
+      el.style.width = (el.dataset.target || 0) + '%';
+    });
+  }
+</script>
+</body>
+</html>
