@@ -16,6 +16,8 @@ EMOTION_COLORS = {
     'Neutral':   '#6B7280',
 }
 
+#---------------- Plug in section for the models:
+
 def _probs_at(seed: int):
     random.seed(seed)
     scores = [random.random() for _ in EMOTIONS]
@@ -47,6 +49,9 @@ def run_model(model_name: str, seed: int, duration: int = 60):
     overall['timeline'] = timeline
     return overall
 
+#---------------- End plug in section
+
+#---------------- Section for Ensemble Model:
 
 def combine_at(results: list, second: int = None):
     combined = {e: 0.0 for e in EMOTIONS}
@@ -64,6 +69,8 @@ def combine_at(results: list, second: int = None):
         'color':     EMOTION_COLORS[best],
         'all_probs': combined,
     }
+    
+#--------------- End Ensemble Model Section
 
 
 def build_ensemble_timeline(results: list):
