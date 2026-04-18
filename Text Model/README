@@ -7,8 +7,8 @@
 ## Files
 
 ### Models
-- **`bertweet_emotion/`** — Fine-tuned BERTweet model (514 MB). Contains weights, tokenizer, and config. Load with `transformers`.
-- **`bertweet_pipeline.pkl`** — Pickled HuggingFace inference pipeline for single-call prediction.
+- **`bertweet_emotion_e6/`** — Fine-tuned BERTweet model (514 MB). Contains weights, tokenizer, and config. Load with `transformers`.
+- **`bertweet_pipeline_e6.pkl`** — Pickled HuggingFace inference pipeline for single-call prediction.
 - **`lr_pipeline.pkl`** — Pickled TF-IDF + Logistic Regression baseline pipeline.
 
 ### Notebooks
