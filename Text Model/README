@@ -1,0 +1,53 @@
+# CS350 — Text Sentiment Classification
+
+**Google Drive:** https://drive.google.com/drive/folders/1AnjrcuU739jYsOwNvN1xvSq-8rO8wLIo?usp=sharing
+
+---
+
+## Files
+
+### Models
+- **`bertweet_emotion/`** — Fine-tuned BERTweet model (514 MB). Contains weights, tokenizer, and config. Load with `transformers`.
+- **`bertweet_pipeline.pkl`** — Pickled HuggingFace inference pipeline for single-call prediction.
+- **`lr_pipeline.pkl`** — Pickled TF-IDF + Logistic Regression baseline pipeline.
+
+### Notebooks
+- **`cs350_textSentimentClassification_v3.ipynb`** — Final notebook (BERTweet + dual dataset).
+
+### Data
+- **`tweet_emotions.csv`** — Primary dataset (~40K tweets, 13 original labels).
+- **`emotions.csv`** — Secondary dataset (~400K rows, 6 labels). Sampled to 40K combined.
+
+---
+
+## Loading the BERTweet Model
+
+```python
+from transformers import AutoModelForSequenceClassification, AutoTokenizer, pipeline
+
+emotion_pipe = pipeline(
+    "text-classification",
+    model="/path/to/bertweet_emotion",
+    tokenizer="/path/to/bertweet_emotion",
+)
+emotion_pipe(["i feel so happy today"])
+```
+
+## Loading the Pickled Pipelines
+
+```python
+import pickle
+
+# BERTweet pipeline
+with open("bertweet_pipeline.pkl", "rb") as f:
+    emotion_pipe = pickle.load(f)
+emotion_pipe(["i feel so happy today"])
+
+# LR baseline pipeline
+with open("lr_pipeline.pkl", "rb") as f:
+    lr_pipeline = pickle.load(f)
+lr_pipeline.predict(["i feel so happy today"])
+```
+
+## Classes
+`angry` · `fearful` · `happy` · `neutral` · `sad`
