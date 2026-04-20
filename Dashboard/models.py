@@ -1,0 +1,63 @@
+import cv2
+import joblib
+import numpy as np
+import tensorflow as tf
+
+from preprocess import fer_prep
+
+EMOTIONS = ['Happy', 'Sad', 'Angry', 'Fearful', 'Neutral']
+FER_EMOTIONS = ['Angry','Fearful','Happy','Sad', 'Neutral']
+
+# -------------------------------------------------
+# LOAD TRAINED MODELS
+# -------------------------------------------------
+
+fer_model = tf.saved_model.load("models/fer_model")
+
+#serModel = 
+
+#terModel = 
+
+def run_fer(chunks):
+    timeline = []
+    overall = {}
+    for second, chunk in enumerate(chunks):
+        frames = chunk["ferdata"]
+        
+        fer_data = fer_prep(frames)
+    
+        predictions = []
+        for face in fer_data:
+            face = np.array(face).reshape(1,48,48,1)
+            infer = fer_model.signatures["serving_default"]
+            
+            output = infer(tf.constant(face, dtype=tf.float32))
+            probs = list(output.values())[0].numpy()[0]
+            
+            predictions.append(probs)
+        
+        if not predictions:
+            return {"second": second, "emotion": "neutral", "accuracy": 0.0, "all_probs": {e: 0.0 for e in FER_EMOTIONS.values()}}
+        
+        avg_probs = np.mean(predictions, axis=0)
+        best_idx = int(np.argmax(avg_probs))
+        emotion = FER_EMOTIONS[best_idx]
+        print(f"{avg_probs} : {best_idx} : {emotion}",flush=True)
+        timeline.append({
+            'second':    second,
+            'emotion':   emotion,
+            'accuracy':  round(float(avg_probs[best_idx]) * 100, 1), #currently this is just the accuracy of the highest value
+            'all_probs': {FER_EMOTIONS[i]: round(float(p) * 100, 1) for i, p in enumerate(avg_probs)},
+        })
+        
+        overall = {
+            'model': "FER Model (Speech)",
+            'emotion': emotion,
+            'accuracy': round(float(avg_probs[best_idx]) * 100, 1),
+            'all_probs': {FER_EMOTIONS[i]: round(float(p) * 100, 1) for i, p in enumerate(avg_probs)},
+            'timeline':timeline
+        }
+        
+    overall['timeline'] = timeline
+    
+    return overall
