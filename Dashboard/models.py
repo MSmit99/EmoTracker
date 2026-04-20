@@ -48,7 +48,7 @@ EMPTY_DATA = {
 
 fer_model = tf.saved_model.load("models/fer_model")
 
-#serModel = 
+#serModel = tf.saved_model.load("models/ser_model")
 
 #terModel = 
 
