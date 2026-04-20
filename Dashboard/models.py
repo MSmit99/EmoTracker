@@ -2,6 +2,8 @@ import cv2
 import joblib
 import numpy as np
 import tensorflow as tf
+import pickle
+#from transformers import AutoModelForSequenceClassification, AutoTokenizer, pipeline
 
 from preprocess import fer_prep
 
@@ -99,6 +101,11 @@ def run_ser(chunks):
     return overall
 
 def run_ter(chunks):
+    # BERTweet pipeline
+    '''with open("models/bertweet_pipeline_e6.pkl", "rb") as f:
+        emotion_pipe = pickle.load(f)
+    print(emotion_pipe(["i feel so happy today"]),flush=True)
+    '''
     overall = {}
     return overall
 

@@ -1,85 +1,134 @@
 import os
 import cv2
-import tempfile
 import numpy as np
-from moviepy import VideoFileClip
-import speech_recognition as sr
-import scipy.io.wavfile as wav
-
+import tempfile
+import subprocess
+import librosa
+import soundfile as sf
+import whisper
 
 def split_video_into_1sec_chunks(video_path):
+    #rebuild of the pipeline using whisper, as i was having difficulties with google speech recognition. could end up being slower but more accurate.
+    
 
+    # ---------------------------------------------------------
+    # Load video info
+    # ---------------------------------------------------------
     cap = cv2.VideoCapture(video_path)
 
     fps = int(cap.get(cv2.CAP_PROP_FPS))
     frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     duration = int(frame_count / fps)
 
-    clip = VideoFileClip(video_path)
-    recognizer = sr.Recognizer()
-
     chunks = []
 
+    # ---------------------------------------------------------
+    # Extract FULL audio once using ffmpeg
+    # ---------------------------------------------------------
+    temp_audio = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+    temp_audio.close()
+
+    #this is the one part of the pipeline that i have no idea how it works.
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-y",
+            "-i", video_path,
+            "-ar", "16000",
+            "-ac", "1",
+            temp_audio.name
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL
+    )
+
+    # ---------------------------------------------------------
+    # Load Whisper model once
+    # ---------------------------------------------------------
+    model = whisper.load_model("base")
+
+    # ---------------------------------------------------------
+    # Process each second
+    # ---------------------------------------------------------
     for sec in range(duration):
-        #FER Split -----------------------------------------------------------
+
+        # =====================================================
+        # FER SECTION
+        # =====================================================
         ferdata = []
 
         start_frame = sec * fps
         end_frame = (sec + 1) * fps
 
         cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
-        
-        for _ in range(start_frame, end_frame):
+
+        sections = range(start_frame, end_frame)
+
+        for i in sections:
+            print(f"Loading section: {i} of {len(sections)}", flush=True)
             ret, frame = cap.read()
             if not ret:
                 break
-
             ferdata.append(frame)
 
-        #SER Split ----------------------------------------------------------
-        '''audio_segment = clip.audio.subclip(sec, sec + 1)
+        # =====================================================
+        # SER SECTION
+        # =====================================================
+        serdata, sample_rate = librosa.load(
+            temp_audio.name,
+            sr=16000,
+            offset=sec,
+            duration=3.0,
+            mono=True
+        )
 
-        temp_wav = tempfile.NamedTemporaryFile(
+        # =====================================================
+        # TER SECTION
+        # =====================================================
+        ter_audio, ter_sample_rate = librosa.load(temp_audio.name, sr=16000, offset=max(0, sec-1), duration=3.0)
+        
+        temp_chunk = tempfile.NamedTemporaryFile(
             suffix=".wav",
             delete=False
         )
+        temp_chunk.close()
 
-        audio_segment.write_audiofile(
-            temp_wav.name,
-            fps=16000,
-            verbose=False,
-            logger=None
-        )
+        sf.write(temp_chunk.name, ter_audio, ter_sample_rate)
 
-        sample_rate, waveform = wav.read(temp_wav.name)
-
-        serdata = waveform
-
-        #TER Split -------------------------------------------------------------
         try:
-            with sr.AudioFile(temp_wav.name) as source:
-                audio = recognizer.record(source)
+            result = model.transcribe(
+                temp_chunk.name,
+                fp16=False,
+                language="en"
+            )
 
-            terdata = recognizer.recognize_google(audio)
+            terdata = result["text"].strip()
 
-        except:
+        except Exception as e:
+            print("Whisper Error:", e, flush=True)
             terdata = ""
 
-        os.remove(temp_wav.name)
-        '''
+        os.remove(temp_chunk.name)
+
+        # =====================================================
+        # Save Chunk
+        # =====================================================
         chunks.append({
             "ferdata": ferdata,
-            #"serdata": serdata,
-            #"terdata": terdata
+            "serdata": serdata,
+            "terdata": terdata
         })
 
+    # ---------------------------------------------------------
+    # Cleanup
+    # ---------------------------------------------------------
     cap.release()
-    clip.close()
+    os.remove(temp_audio.name)
 
     return chunks
 
-_face_cascade = cv2.CascadeClassifier("models/haarcascade_frontalface_default.xml")
 
+_face_cascade = cv2.CascadeClassifier("models/haarcascade_frontalface_default.xml")
 
 def fer_prep(frames):
     
