@@ -3,8 +3,8 @@ import os
 import tempfile
 
 from preprocess import split_video_into_1sec_chunks
-from models import run_model, run_fer_debug #ferModel, serModel, terModel
-from utils import combine_at
+from models import run_models
+from utils import combine_at, average_timeline
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
@@ -27,18 +27,17 @@ def analyze():
         chunks = split_video_into_1sec_chunks(path)
         print('chunked',flush=True)
 
-        fer_result = run_fer_debug(chunks)
-
+        results = run_models(chunks)
         
+        print("Completed",flush=True)
 
-        results = [fer_result]
-        
-        print(results,flush=True)
+        ensemble_overall = combine_at(results)
+        ensemble_timeline = average_timeline(results)
 
         return jsonify({
             'filename':video.filename,
             'models': results,
-            'ensemble':{},
+            'ensemble':{**ensemble_overall, "timeline":ensemble_timeline},
             })
 
     except Exception as e:

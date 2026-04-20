@@ -8,6 +8,38 @@ from preprocess import fer_prep
 EMOTIONS = ['Happy', 'Sad', 'Angry', 'Fearful', 'Neutral']
 FER_EMOTIONS = ['Angry','Fearful','Happy','Sad', 'Neutral']
 
+'''
+The app expects the data from the models in this format:
+overall = {
+    'model':'name',
+    'emotion':'emotion',
+    'accuracy':90,
+    'all_probs': {"Angry": 30, "Fearful": 10, "Happy": 10, "Neutral": 30, "Sad": 20}
+    'timeline': [{
+            'second':0,
+            'emotion':'emotion',
+            'accuracy':90,
+            'all_probs':{"Angry": 30, "Fearful": 10, "Happy": 10, "Neutral": 30, "Sad": 20},
+        },{
+            'second':1,
+            ...
+        },...]
+}
+
+'''
+
+EMPTY_DATA = {
+    'emotion':'Neutral',
+    'accuracy':0,
+    'all_probs': {"Angry": 0, "Fearful": 0, "Happy": 0, "Neutral": 0, "Sad": 0},
+    'timeline': [{
+            'second':0,
+            'emotion':'Neutral',
+            'accuracy':0,
+            'all_probs':{"Angry": 0, "Fearful": 0, "Happy": 0, "Neutral": 0, "Sad": 0},
+        }]
+    }
+
 # -------------------------------------------------
 # LOAD TRAINED MODELS
 # -------------------------------------------------
@@ -37,7 +69,7 @@ def run_fer(chunks):
             predictions.append(probs)
         
         if not predictions:
-            return {"second": second, "emotion": "neutral", "accuracy": 0.0, "all_probs": {e: 0.0 for e in FER_EMOTIONS.values()}}
+            return {"second": second, "emotion": "Neutral", "accuracy": 0.0, "all_probs": {e: 0.0 for e in FER_EMOTIONS.values()}}
         
         avg_probs = np.mean(predictions, axis=0)
         best_idx = int(np.argmax(avg_probs))
@@ -51,7 +83,7 @@ def run_fer(chunks):
         })
         
         overall = {
-            'model': "FER Model (Speech)",
+            'model': "FER Model (Facial Expression)",
             'emotion': emotion,
             'accuracy': round(float(avg_probs[best_idx]) * 100, 1),
             'all_probs': {FER_EMOTIONS[i]: round(float(p) * 100, 1) for i, p in enumerate(avg_probs)},
@@ -61,3 +93,27 @@ def run_fer(chunks):
     overall['timeline'] = timeline
     
     return overall
+
+def run_ser(chunks):
+    overall = {}
+    return overall
+
+def run_ter(chunks):
+    overall = {}
+    return overall
+
+def run_models(chunks):
+    result = []
+    
+    fempty = EMPTY_DATA
+    sempty = EMPTY_DATA
+    tempty = EMPTY_DATA
+    fempty['model'] = "FER Model (Facial Expression)"
+    sempty['model'] = "SER Model (Speech)"
+    tempty['model'] = "TER Model (Textual)"
+    
+    result.append(run_fer(chunks) or fempty)
+    result.append(run_ser(chunks) or sempty)
+    result.append(run_ter(chunks) or tempty)
+    
+    return result

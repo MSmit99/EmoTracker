@@ -210,6 +210,9 @@
       ? analysisData.ensemble.timeline[second]
       : analysisData.ensemble;
 
+    const debug = document.getElementById('debug');
+    debug.innerHTML = (JSON.stringify(analysisData.ensemble, null, 2));
+
     renderModels(models, false);
     renderEnsemble(ens, false);
 
@@ -218,8 +221,6 @@
 
   function renderModels(models, animate = true) {
     const grid = document.getElementById('modelsGrid');
-    const debug = document.getElementById('debug');
-    debug.innerHTML = (JSON.stringify(models[0], null, 2));
     grid.innerHTML = models.map((m, i) => {
       const color = EMOTION_COLORS[m.emotion] || '#6B7280';
       const probs = Object.entries(m.all_probs).sort((a,b)=>b[1]-a[1]);
