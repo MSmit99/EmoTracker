@@ -1,15 +1,13 @@
-import cv2
-import joblib
 import numpy as np
 import tensorflow as tf
-import pickle
-#from transformers import AutoModelForSequenceClassification, AutoTokenizer, pipeline
-
+import onnxruntime as ort
+from transformers import AutoTokenizer
 from preprocess import fer_prep, ser_prep
 
 EMOTIONS = ['Happy', 'Sad', 'Angry', 'Fearful', 'Neutral']
 FER_EMOTIONS = ['Angry','Fearful','Happy','Sad', 'Neutral']
 SER_EMOTIONS = ['Angry', 'Fearful', 'Happy', 'Neutral', 'Sad']
+TER_EMOTIONS = ['Angry','Fearful','Happy','Neutral','Sad']
 
 '''
 The app expects the data from the models in this format:
@@ -51,7 +49,8 @@ fer_model = tf.saved_model.load("models/fer_model")
 
 serModel = tf.saved_model.load("models/ser_model")
 
-#terModel = 
+session = ort.InferenceSession("models/bertweet_emotion.onnx")
+tokenizer = AutoTokenizer.from_pretrained("vinai/bertweet-base")
 
 def run_fer(chunks):
     timeline = []
@@ -77,7 +76,6 @@ def run_fer(chunks):
         avg_probs = np.mean(predictions, axis=0)
         best_idx = int(np.argmax(avg_probs))
         emotion = FER_EMOTIONS[best_idx]
-        print(f"{avg_probs} : {best_idx} : {emotion}",flush=True)
         timeline.append({
             'second':    second,
             'emotion':   emotion,
@@ -100,9 +98,6 @@ def run_fer(chunks):
 def run_ser(chunks):
     timeline = []
     overall = {}
-    import pickle
-    with open("data.pkl", "wb") as f:
-        pickle.dump(chunks, f)
     for second, chunk in enumerate(chunks):
         frames = chunk["serdata"]
         
@@ -123,7 +118,6 @@ def run_ser(chunks):
         avg_probs = np.mean(predictions, axis=0)
         best_idx = int(np.argmax(avg_probs))
         emotion = SER_EMOTIONS[best_idx]
-        print(f"{avg_probs} : {best_idx} : {emotion}",flush=True)
         timeline.append({
             'second':    second,
             'emotion':   emotion,
@@ -144,12 +138,57 @@ def run_ser(chunks):
     return overall
 
 def run_ter(chunks):
-    # BERTweet pipeline
-    '''with open("models/bertweet_pipeline_e6.pkl", "rb") as f:
-        emotion_pipe = pickle.load(f)
-    print(emotion_pipe(["i feel so happy today"]),flush=True)
-    '''
+    
     overall = {}
+    timeline = []
+    
+    for second, chunk in enumerate(chunks):
+            
+        text = chunk["terdata"]
+        
+        tokens = tokenizer(
+            text,
+            return_tensors="np",
+            truncation=True,
+            padding="max_length",
+            max_length=128
+        )
+
+        outputs = session.run(
+            None,
+            {
+                "input_ids": tokens["input_ids"],
+                "attention_mask": tokens["attention_mask"]
+            }
+        )
+
+        logits = outputs[0]
+
+        exp = np.exp(logits)
+        probs = exp / np.sum(exp, axis=1, keepdims=True)
+        probs = probs[0]
+
+        idx = np.argmax(probs)
+        
+        emotion = TER_EMOTIONS[idx]
+        
+        print(probs,flush=True)
+        
+        timeline.append({
+            'second':    second,
+            'emotion':   emotion,
+            'accuracy':  round(float(probs[idx]) * 100, 1), #currently this is just the accuracy of the highest value
+            'all_probs': {TER_EMOTIONS[i]: round(float(p) * 100, 1) for i, p in enumerate(probs)},
+        })
+        
+        overall = {
+            'model': "TER Model (Textual)",
+            'emotion': emotion,
+            'accuracy': round(float(probs[idx]) * 100, 1),
+            'all_probs': {TER_EMOTIONS[i]: round(float(p) * 100, 1) for i, p in enumerate(probs)},
+            'timeline':timeline
+        }
+    overall['timeline'] = timeline
     return overall
 
 def run_models(chunks):
