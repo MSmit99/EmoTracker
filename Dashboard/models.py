@@ -109,14 +109,13 @@ def run_ser(chunks):
         ser_data = ser_prep(frames, 16000)
     
         predictions = []
-        for clip in ser_data:
 
-            infer = serModel.signatures["serving_default"]
-            
-            output = infer(tf.constant(clip, dtype=tf.float32))
-            probs = list(output.values())[0].numpy()[0]
-            
-            predictions.append(probs)
+        infer = serModel.signatures["serving_default"]
+        
+        output = infer(tf.constant(ser_data, dtype=tf.float32))
+        probs = list(output.values())[0].numpy()[0]
+        
+        predictions.append(probs)
         
         if not predictions:
             return {"second": second, "emotion": "Neutral", "accuracy": 0.0, "all_probs": {e: 0.0 for e in SER_EMOTIONS.values()}}

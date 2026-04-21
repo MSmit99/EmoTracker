@@ -183,7 +183,7 @@ def ser_prep(audio, sample_rate, max_pad_len=174, n_mfcc=40):
         # mfccs  # shape: (40, 174)
 
 
-        data_t = np.array(mfccs).transpose(0,2,1)
+        data_t = np.array([mfccs]).transpose(0,2,1)
 
         return data_t  # shape: (1, 174, 40)
 
