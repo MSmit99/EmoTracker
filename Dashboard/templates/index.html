@@ -59,7 +59,22 @@
 
     <!-- Results (always visible) -->
     <div id="results">
-      <div class="section-label" style="margin-top:0">02 · Per-Model Predictions</div>
+
+      <div class="section-label">02 · Ensemble Prediction</div>
+      <div class="ensemble-card empty" id="ensembleCard" style="margin-bottom:50px">
+        <div class="ensemble-left">
+          <div class="ensemble-label">🤝 Ensemble Result</div>
+          <div class="ensemble-emotion" style="color:var(--muted)">—</div>
+          <p style="font-size:.85rem;color:var(--muted);margin-top:10px">Upload a video to see the combined prediction</p>
+        </div>
+        <!--<div class="ensemble-right">
+          <div class="ensemble-acc-num" style="font-size:2rem;color:var(--muted);-webkit-text-fill-color:var(--muted)">—%</div>
+          <div class="ensemble-acc-label">Combined Confidence</div>
+        </div>-->
+      </div>
+
+
+      <div class="section-label" style="margin-top:10px">03 · Per-Model Predictions</div>
       <div class="models-grid" id="modelsGrid">
         <div class="model-card empty">
           <div class="model-name">SER Model (Speech)</div>
@@ -75,18 +90,7 @@
         </div>
       </div>
 
-      <div class="section-label">03 · Ensemble Prediction</div>
-      <div class="ensemble-card empty" id="ensembleCard">
-        <div class="ensemble-left">
-          <div class="ensemble-label">🤝 Ensemble Result</div>
-          <div class="ensemble-emotion" style="color:var(--muted)">—</div>
-          <p style="font-size:.85rem;color:var(--muted);margin-top:10px">Upload a video to see the combined prediction</p>
-        </div>
-        <!--<div class="ensemble-right">
-          <div class="ensemble-acc-num" style="font-size:2rem;color:var(--muted);-webkit-text-fill-color:var(--muted)">—%</div>
-          <div class="ensemble-acc-label">Combined Confidence</div>
-        </div>-->
-      </div>
+      
     </div>
   </div>
 
