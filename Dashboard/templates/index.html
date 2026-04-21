@@ -29,6 +29,9 @@
       <p>MP4, MOV, AVI · up to 100 MB</p>
       <div class="file-name" id="fileName">No file selected</div>
     </div>
+    <div style="text-align:center; padding-top:10px;">
+      <p id='errorMsg' style="color:red;"></p>
+    </div>
     <button class="btn-analyze" id="analyzeBtn" onclick="analyze()">Analyze Emotion →</button>
 
     <!-- Video player (shown after upload) -->
@@ -49,6 +52,9 @@
     <div class="loader" id="loader">
       <div class="spinner"></div>
       <p>Running inference across all models…</p>
+    </div>
+
+    <div id='debug'>
     </div>
 
     <!-- Results (always visible) -->
@@ -76,10 +82,10 @@
           <div class="ensemble-emotion" style="color:var(--muted)">—</div>
           <p style="font-size:.85rem;color:var(--muted);margin-top:10px">Upload a video to see the combined prediction</p>
         </div>
-        <div class="ensemble-right">
+        <!--<div class="ensemble-right">
           <div class="ensemble-acc-num" style="font-size:2rem;color:var(--muted);-webkit-text-fill-color:var(--muted)">—%</div>
           <div class="ensemble-acc-label">Combined Confidence</div>
-        </div>
+        </div>-->
       </div>
     </div>
   </div>
@@ -101,8 +107,13 @@
   const timelineThumb   = document.getElementById('timelineThumb');
   const timeCurrent     = document.getElementById('timeCurrent');
   const timeDuration    = document.getElementById('timeDuration');
+  const uploadError = document.getElementById('errorMsg');
+
+  const MAX_VIDEO_SIZE = 50*1024*1024;
 
   let analysisData = null;
+
+  let prevSecond = 0;
 
   // ── drag-and-drop ──
   dropZone.addEventListener('dragover',  e => { e.preventDefault(); dropZone.classList.add('drag'); });
@@ -114,6 +125,12 @@
   videoInput.addEventListener('change', () => { if (videoInput.files[0]) setFile(videoInput.files[0]); });
 
   function setFile(file) {
+    uploadError.innerHTML = "";
+    if(file && file.size>MAX_VIDEO_SIZE){
+      const file_size_mb = file.size / (1024 * 1024);
+      uploadError.innerHTML = `File is too large! Maximum is 10MB.<br> Your file is: ${file_size_mb.toFixed(2)}MB`;
+      return;
+    }
     fileNameEl.textContent = file.name;
     dropZone.classList.add('has-file');
     analyzeBtn.classList.add('visible');
@@ -131,7 +148,9 @@
     timelineFill.style.width  = (pct * 100) + '%';
     timelineThumb.style.left  = (pct * 100) + '%';
     timeCurrent.textContent   = fmtTime(videoPlayer.currentTime);
-    if (analysisData) syncToSecond(Math.floor(videoPlayer.currentTime));
+    curSecond = Math.floor(videoPlayer.currentTime);
+    if (analysisData && prevSecond!=curSecond) syncToSecond(curSecond);
+    prevSecond = curSecond;
   });
 
   // ── custom scrubber drag ──
@@ -169,19 +188,13 @@
       const data = await res.json();
       if (data.error) { alert(data.error); return; }
       analysisData = data;
-      renderResults(data);
+      syncToSecond(Math.floor(videoPlayer.currentTime));
     } catch(e) {
       alert('Request failed: ' + e.message);
     } finally {
       document.getElementById('loader').classList.remove('active');
       analyzeBtn.disabled = false;
     }
-  }
-
-  function renderResults(data) {
-    renderModels(data.models);
-    renderEnsemble(data.ensemble);
-    requestAnimationFrame(() => requestAnimationFrame(() => animateBars()));
   }
 
   // ── sync cards to a specific second in the timeline ──
@@ -199,6 +212,7 @@
 
     renderModels(models, false);
     renderEnsemble(ens, false);
+
     requestAnimationFrame(() => requestAnimationFrame(() => animateBars()));
   }
 
@@ -245,10 +259,11 @@
         <div class="ensemble-emotion" style="color:${color}">${ens.emotion}</div>
         <p style="font-size:.85rem;color:var(--muted);margin-top:10px">Combined prediction from all three models</p>
       </div>
-      <div class="ensemble-right">
+      `;
+      /*<div class="ensemble-right">
         <div class="ensemble-acc-num">${ens.accuracy}%</div>
         <div class="ensemble-acc-label">Combined Confidence</div>
-      </div>`;
+      </div>*/
   }
 
   function animateBars() {
