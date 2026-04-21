@@ -5,10 +5,11 @@ import tensorflow as tf
 import pickle
 #from transformers import AutoModelForSequenceClassification, AutoTokenizer, pipeline
 
-from preprocess import fer_prep
+from preprocess import fer_prep, ser_prep
 
 EMOTIONS = ['Happy', 'Sad', 'Angry', 'Fearful', 'Neutral']
 FER_EMOTIONS = ['Angry','Fearful','Happy','Sad', 'Neutral']
+SER_EMOTIONS = ['Angry', 'Fearful', 'Happy', 'Neutral', 'Sad']
 
 '''
 The app expects the data from the models in this format:
@@ -48,7 +49,7 @@ EMPTY_DATA = {
 
 fer_model = tf.saved_model.load("models/fer_model")
 
-#serModel = tf.saved_model.load("models/ser_model")
+serModel = tf.saved_model.load("models/ser_model")
 
 #terModel = 
 
@@ -97,7 +98,50 @@ def run_fer(chunks):
     return overall
 
 def run_ser(chunks):
+    timeline = []
     overall = {}
+    import pickle
+    with open("data.pkl", "wb") as f:
+        pickle.dump(chunks, f)
+    for second, chunk in enumerate(chunks):
+        frames = chunk["serdata"]
+        
+        ser_data = ser_prep(frames, 16000)
+    
+        predictions = []
+        for clip in ser_data:
+
+            infer = serModel.signatures["serving_default"]
+            
+            output = infer(tf.constant(clip, dtype=tf.float32))
+            probs = list(output.values())[0].numpy()[0]
+            
+            predictions.append(probs)
+        
+        if not predictions:
+            return {"second": second, "emotion": "Neutral", "accuracy": 0.0, "all_probs": {e: 0.0 for e in SER_EMOTIONS.values()}}
+        
+        avg_probs = np.mean(predictions, axis=0)
+        best_idx = int(np.argmax(avg_probs))
+        emotion = SER_EMOTIONS[best_idx]
+        print(f"{avg_probs} : {best_idx} : {emotion}",flush=True)
+        timeline.append({
+            'second':    second,
+            'emotion':   emotion,
+            'accuracy':  round(float(avg_probs[best_idx]) * 100, 1), #currently this is just the accuracy of the highest value
+            'all_probs': {SER_EMOTIONS[i]: round(float(p) * 100, 1) for i, p in enumerate(avg_probs)},
+        })
+        
+        overall = {
+            'model': "SER Model (Speech Emotion Recognition)",
+            'emotion': emotion,
+            'accuracy': round(float(avg_probs[best_idx]) * 100, 1),
+            'all_probs': {SER_EMOTIONS[i]: round(float(p) * 100, 1) for i, p in enumerate(avg_probs)},
+            'timeline':timeline
+        }
+        
+    overall['timeline'] = timeline
+    
     return overall
 
 def run_ter(chunks):

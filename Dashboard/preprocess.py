@@ -1,5 +1,6 @@
 import os
 import cv2
+from cv2 import data
 import numpy as np
 import tempfile
 import subprocess
@@ -157,3 +158,37 @@ def fer_prep(frames):
         prepped.append(face.reshape(48, 48, 1))
         
     return np.array(prepped)
+
+
+
+def ser_prep(audio, sample_rate, max_pad_len=174, n_mfcc=40):
+    """
+    Extracts MFCC features from an audio column.
+
+    Returns a 2D array of shape (n_mfcc, max_pad_len) —
+    this becomes one "time-series" sample for the LSTM.
+    """
+    try:
+
+        # Extract MFCCs — shape: (n_mfcc, time_steps)
+        mfccs = librosa.feature.mfcc(y=audio, sr=sample_rate, n_mfcc=n_mfcc)
+
+        # Pad or truncate to a fixed length so all samples are the same shape
+        pad_width = max_pad_len - mfccs.shape[1]
+        if pad_width > 0:
+            mfccs = np.pad(mfccs, pad_width=((0, 0), (0, pad_width)), mode='constant')
+        else:
+            mfccs = mfccs[:, :max_pad_len]
+
+        # mfccs  # shape: (40, 174)
+
+
+        data_t = np.array(mfccs).transpose(0,2,1)
+
+        return data_t  # shape: (1, 174, 40)
+
+
+
+    except Exception as e:
+        print(f"Error processing audio: {e}")
+        return None
