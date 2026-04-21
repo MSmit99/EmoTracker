@@ -6,14 +6,17 @@ def combine_at(results):
     combined = {emotion: 0.0 for emotion in EMOTIONS}
 
     total_models = len(results)
+    
+    weights = [0.4,0.4,0.2]
 
-    for result in results:
+    for i, result in enumerate(results):
+        print(f"weights: {result}", flush=True)
         if not result:
             continue
         probs = result["all_probs"]
-
+        weight = weights[i%3]
         for emotion, value in probs.items():
-            combined[emotion] += value / total_models
+            combined[emotion] += value * weight / total_models
     
     combined = {
         emotion: round(score, 1)

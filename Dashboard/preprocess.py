@@ -6,6 +6,9 @@ import subprocess
 import librosa
 import soundfile as sf
 import whisper
+import joblib
+
+ser_scaler = joblib.load("models\scaler_copy_5cat.pkl")
 
 def split_video_into_1sec_chunks(video_path):
     #rebuild of the pipeline using whisper, as i was having difficulties with google speech recognition. could end up being slower but more accurate.
@@ -63,9 +66,9 @@ def split_video_into_1sec_chunks(video_path):
         cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
 
         sections = range(start_frame, end_frame)
-
+        print(f"Loading section: {sec+1} of {len(range(duration))}", flush=True)
         for i in sections:
-            print(f"Loading section: {i} of {len(sections)}", flush=True)
+            
             ret, frame = cap.read()
             if not ret:
                 break
@@ -77,7 +80,7 @@ def split_video_into_1sec_chunks(video_path):
         serdata, sample_rate = librosa.load(
             temp_audio.name,
             sr=16000,
-            offset=sec,
+            offset=max(0, sec-1),
             duration=3.0,
             mono=True
         )
@@ -158,33 +161,39 @@ def fer_prep(frames):
         
     return np.array(prepped)
 
-
-
 def ser_prep(audio, sample_rate, max_pad_len=174, n_mfcc=40):
-    """
-    Extracts MFCC features from an audio column.
-
-    Returns a 2D array of shape (n_mfcc, max_pad_len) —
-    this becomes one "time-series" sample for the LSTM.
-    """
     try:
+        mfccs = librosa.feature.mfcc(
+            y=audio,
+            sr=sample_rate,
+            n_mfcc=n_mfcc
+        )
 
-        # Extract MFCCs — shape: (n_mfcc, time_steps)
-        mfccs = librosa.feature.mfcc(y=audio, sr=sample_rate, n_mfcc=n_mfcc)
-
-        # Pad or truncate to a fixed length so all samples are the same shape
         pad_width = max_pad_len - mfccs.shape[1]
+
         if pad_width > 0:
-            mfccs = np.pad(mfccs, pad_width=((0, 0), (0, pad_width)), mode='constant')
+            mfccs = np.pad(
+                mfccs,
+                ((0, 0), (0, pad_width)),
+                mode='constant'
+            )
         else:
             mfccs = mfccs[:, :max_pad_len]
 
-        # mfccs  # shape: (40, 174)
+        # Convert to (timesteps, features)
+        features = mfccs.T           # (174,40)
 
+        # Scale 2D only
+        features = ser_scaler.transform(features)
 
-        data_t = np.array([mfccs]).transpose(0,2,1)
+        # Add batch dimension AFTER scaling
+        features = np.expand_dims(features, axis=0)   # (1,174,40)
 
-        return data_t  # shape: (1, 174, 40)
+        return features.astype(np.float32)
+
+    except Exception as e:
+        print(f"Error processing audio: {e}")
+        return None
 
 
 

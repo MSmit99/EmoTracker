@@ -82,10 +82,10 @@
           <div class="ensemble-emotion" style="color:var(--muted)">—</div>
           <p style="font-size:.85rem;color:var(--muted);margin-top:10px">Upload a video to see the combined prediction</p>
         </div>
-        <div class="ensemble-right">
+        <!--<div class="ensemble-right">
           <div class="ensemble-acc-num" style="font-size:2rem;color:var(--muted);-webkit-text-fill-color:var(--muted)">—%</div>
           <div class="ensemble-acc-label">Combined Confidence</div>
-        </div>
+        </div>-->
       </div>
     </div>
   </div>
@@ -109,7 +109,7 @@
   const timeDuration    = document.getElementById('timeDuration');
   const uploadError = document.getElementById('errorMsg');
 
-  const MAX_VIDEO_SIZE = 10*1024*1024;
+  const MAX_VIDEO_SIZE = 50*1024*1024;
 
   let analysisData = null;
 
@@ -210,9 +210,6 @@
       ? analysisData.ensemble.timeline[second]
       : analysisData.ensemble;
 
-    const debug = document.getElementById('debug');
-    debug.innerHTML = (JSON.stringify(analysisData.ensemble, null, 2));
-
     renderModels(models, false);
     renderEnsemble(ens, false);
 
@@ -262,10 +259,11 @@
         <div class="ensemble-emotion" style="color:${color}">${ens.emotion}</div>
         <p style="font-size:.85rem;color:var(--muted);margin-top:10px">Combined prediction from all three models</p>
       </div>
-      <div class="ensemble-right">
+      `;
+      /*<div class="ensemble-right">
         <div class="ensemble-acc-num">${ens.accuracy}%</div>
         <div class="ensemble-acc-label">Combined Confidence</div>
-      </div>`;
+      </div>*/
   }
 
   function animateBars() {
