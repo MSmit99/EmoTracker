@@ -162,6 +162,22 @@ def fer_prep(frames):
     return np.array(prepped)
 
 def ser_prep(audio, sample_rate, max_pad_len=174, n_mfcc=40):
+    target_rms=0.1
+    top_db=30
+    
+    # ── Trim silence ─────────────────────────
+    audio_trimmed, _ = librosa.effects.trim(audio, top_db=top_db)
+    
+    # ── Normalize loudness ───────────────────
+    rms_before = np.sqrt(np.mean(audio_trimmed**2))
+    audio_norm = audio_trimmed.copy()
+
+    if rms_before > 0:
+        audio_norm = audio_norm * (target_rms / rms_before)
+
+    audio = np.clip(audio_norm, -1.0, 1.0)
+
+
     try:
         mfccs = librosa.feature.mfcc(
             y=audio,
